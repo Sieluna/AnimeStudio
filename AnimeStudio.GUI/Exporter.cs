@@ -40,7 +40,7 @@ namespace AnimeStudio.GUI
                         }
                         else
                         {
-                            Logger.Warning($"Skipped EXR export for {item.Text}: EXR module is enabled, but no EXR writer is linked in this build.");
+                            Logger.Warning($"Skipped EXR export for {item.Text}: embedded EXR module currently supports import only (no EXR writer linked).");
                         }
                         return false;
                     }
