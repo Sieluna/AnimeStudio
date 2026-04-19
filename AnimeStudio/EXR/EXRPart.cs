@@ -255,23 +255,6 @@ namespace EXR {
                 }
             }
 
-#if !PARALLEL
-            int srcIndex = 0;
-            int destIndex = 0;
-
-            BinaryWriter writer = new BinaryWriter(new MemoryStream(buffer));
-
-            for (int y = 0; y < DataWindow.Height; y++, destIndex += padding) {
-                GetScanlineBytes(bytesPerPixel, destIndex, srcIndex, isHalf, destinationAlpha, sourceAlpha,
-                    hr, hg, hb, ha, fr, fg, fb, fa,
-                    bitsPerPixel, gamma, premultiplied, bgra, buffer, writer);
-                destIndex += DataWindow.Width * bytesPerPixel;
-                srcIndex += DataWindow.Width;
-            }
-
-            writer.Dispose();
-            writer.BaseStream.Dispose();
-#else
             var actions = (from y in Enumerable.Range(0, DataWindow.Height) select (Action)(() => {
                 var destIndex = stride * y;
                 var srcIndex = DataWindow.Width * y;
@@ -285,7 +268,6 @@ namespace EXR {
                 }
             })).ToArray();
             Parallel.Invoke(actions);
-#endif
 
             return buffer;
         }
@@ -527,12 +509,10 @@ namespace EXR {
             }
         }
 
-#if DOTNET
         public void Open(string file) {
             using var reader = new EXRReader(new FileStream(file, FileMode.Open, FileAccess.Read));
             Open(reader);
         }
-#endif
 
         public void Open(Stream stream) {
             using var reader = new EXRReader(new BinaryReader(stream));
@@ -599,7 +579,6 @@ namespace EXR {
             }
         }
 
-#if PARALLEL
         public void OpenParallel(string file) {
             OpenParallel(() => {
                 return new EXRReader(new FileStream(file, FileMode.Open, FileAccess.Read));
@@ -622,16 +601,6 @@ namespace EXR {
             }));
             Parallel.Invoke(actions.ToArray());
         }
-#else
-        public void OpenParallel(string file) {
-            Open(file);
-        }
-
-        public void OpenParallel(ParallelReaderCreationDelegate createReader) {
-            using var reader = createReader();
-            Open(reader);
-        }
-#endif
 
         protected void ReadPixelData(IEXRReader reader) {
             var linesPerBlock = EXRFile.GetScanLinesPerBlock(Header.Compression);

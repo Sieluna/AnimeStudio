@@ -41,7 +41,6 @@ namespace EXR.Compression {
         }
 
         public static void MemSet(byte[] array, int offset, byte value, int count) {
-#if DOTNET
             if (array == null) {
                 throw new ArgumentNullException("array");
             }
@@ -61,12 +60,6 @@ namespace EXR.Compression {
                 index += block;
                 block *= 2;
             }
-#else
-            var end = offset + count;
-            for (int i = offset; i < end; i++) {
-                array[i] = value;
-            }
-#endif
         }
     }
 }

@@ -88,13 +88,11 @@ public class EXRFile
         _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unrecognized destination format")
     };
 
-#if DOTNET
     public static EXRFile FromFile(string file)
     {
         using var reader = new EXRReader(new FileStream(file, FileMode.Open, FileAccess.Read));
         return FromReader(reader);
     }
-#endif
 
     public static EXRFile FromStream(Stream stream)
     {

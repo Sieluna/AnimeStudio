@@ -130,41 +130,16 @@ namespace EXR {
             return shiftTable;
         }
 
-#if UNSAFE
-        public static unsafe float HalfToSingle(Half half) {
-#else
         public static float HalfToSingle(Half half) {
-#endif
             uint result = mantissaTable[offsetTable[half.value >> 10] + (half.value & 0x3ff)] + exponentTable[half.value >> 10];
 
-#if !UNSAFE
-#if DOTNET
             var bytes = BitConverter.GetBytes(result);
             return BitConverter.ToSingle(bytes, 0);
-#else
-            buffer.WriteUInt32(result, 0);
-            return buffer.ReadSingle(0);
-#endif
-#else
-            return *((float*)&result);
-#endif
         }
 
-#if UNSAFE
-        public static unsafe Half SingleToHalf(float single) {
-            uint value = *((uint*)&single);
-#else
-#if DOTNET
         public static Half SingleToHalf(float single) {
             var bytes = BitConverter.GetBytes(single);
             var value = BitConverter.ToUInt32(bytes, 0);
-#else
-        static Franca.BinaryData buffer = new Franca.BinaryData();
-        public static Half SingleToHalf(float single) {
-            buffer.WriteSingle(single, 0);
-            var value = buffer.ReadUInt32(0);
-#endif
-#endif
 
             ushort result = (ushort)(baseTable[(value >> 23) & 0x1ff] + ((value & 0x007fffff) >> shiftTable[value >> 23]));
             return Half.ToHalf(result);

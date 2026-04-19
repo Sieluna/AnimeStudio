@@ -165,20 +165,21 @@ namespace AnimeStudio
                 writer.Write(dataSize);
 
                 int rowOffset = y * width * 8;
-                for (int x = 0; x < width; x++)
-                {
-                    int pixelOffset = rowOffset + x * 8;
-                    ushort r = BinaryPrimitives.ReadUInt16LittleEndian(rgbaHalfData.AsSpan(pixelOffset + 0, 2));
-                    ushort g = BinaryPrimitives.ReadUInt16LittleEndian(rgbaHalfData.AsSpan(pixelOffset + 2, 2));
-                    ushort b = BinaryPrimitives.ReadUInt16LittleEndian(rgbaHalfData.AsSpan(pixelOffset + 4, 2));
-                    ushort a = BinaryPrimitives.ReadUInt16LittleEndian(rgbaHalfData.AsSpan(pixelOffset + 6, 2));
+                // Scanline payload is channel-major in channel list order: A... B... G... R...
+                WriteChannelRow(writer, rgbaHalfData, rowOffset, width, channelByteOffset: 6); // A
+                WriteChannelRow(writer, rgbaHalfData, rowOffset, width, channelByteOffset: 4); // B
+                WriteChannelRow(writer, rgbaHalfData, rowOffset, width, channelByteOffset: 2); // G
+                WriteChannelRow(writer, rgbaHalfData, rowOffset, width, channelByteOffset: 0); // R
+            }
+        }
 
-                    // Channel payload follows sorted channel order: A, B, G, R.
-                    writer.Write(a);
-                    writer.Write(b);
-                    writer.Write(g);
-                    writer.Write(r);
-                }
+        private static void WriteChannelRow(BinaryWriter writer, byte[] rgbaHalfData, int rowOffset, int width, int channelByteOffset)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                int pixelOffset = rowOffset + x * 8;
+                ushort value = BinaryPrimitives.ReadUInt16LittleEndian(rgbaHalfData.AsSpan(pixelOffset + channelByteOffset, 2));
+                writer.Write(value);
             }
         }
 
