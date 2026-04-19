@@ -1,101 +1,79 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System;
 
-namespace EXR {
-    [Flags]
-    public enum EXRVersionFlags {
-        IsSinglePartTiled = 0x200,
-        LongNames = 0x400,
-        NonImageParts = 0x800,
-        MultiPart = 0x1000
+namespace EXR;
+
+[Flags]
+public enum EXRVersionFlags
+{
+    IsSinglePartTiled = 0x200,
+    LongNames = 0x400,
+    NonImageParts = 0x800,
+    MultiPart = 0x1000
+}
+
+public readonly struct EXRVersion
+{
+    public EXRVersionFlags Value { get; }
+
+    public EXRVersion(int version, bool multiPart, bool longNames, bool nonImageParts, bool isSingleTiled = false)
+    {
+        var flags = (EXRVersionFlags)(version & 0xFF);
+
+        if (version == 1 && (multiPart || nonImageParts))
+        {
+            throw new EXRFormatException("Invalid or corrupt EXR version: Version 1 EXR files cannot be multi part or have non image parts.");
+        }
+
+        if (isSingleTiled)
+        {
+            flags |= EXRVersionFlags.IsSinglePartTiled;
+        }
+
+        if (longNames)
+        {
+            flags |= EXRVersionFlags.LongNames;
+        }
+
+        if (version != 1)
+        {
+            if (nonImageParts)
+            {
+                flags |= EXRVersionFlags.NonImageParts;
+            }
+
+            if (multiPart)
+            {
+                flags |= EXRVersionFlags.MultiPart;
+            }
+        }
+
+        Value = flags;
+        Verify();
     }
 
-    public struct EXRVersion {
-        public readonly EXRVersionFlags Value;
+    public EXRVersion(int value)
+    {
+        Value = (EXRVersionFlags)value;
+        Verify();
+    }
 
-        public EXRVersion(int version, bool multiPart, bool longNames, bool nonImageParts, bool isSingleTiled = false) {
-            Value = (EXRVersionFlags)(version & 0xFF);
+    public int Version => (int)Value & 0xFF;
 
-            if (version == 1) {
-                if (multiPart || nonImageParts) {
-                    throw new EXRFormatException("Invalid or corrupt EXR version: Version 1 EXR files cannot be multi part or have non image parts.");
-                }
-                if (isSingleTiled) {
-                    Value |= EXRVersionFlags.IsSinglePartTiled;
-                }
-                if (longNames) {
-                    Value |= EXRVersionFlags.LongNames;
-                }
-            }
-            else {
-                if (isSingleTiled) {
-                    Value |= EXRVersionFlags.IsSinglePartTiled;
-                }
-                if (longNames) {
-                    Value |= EXRVersionFlags.LongNames;
-                }
-                if (nonImageParts) {
-                    Value |= EXRVersionFlags.NonImageParts;
-                }
-                if (multiPart) {
-                    Value |= EXRVersionFlags.MultiPart;
-                }
-            }
+    public bool IsSinglePartTiled => Value.HasFlag(EXRVersionFlags.IsSinglePartTiled);
 
-            Verify();
-        }
+    public bool HasLongNames => Value.HasFlag(EXRVersionFlags.LongNames);
 
-        public EXRVersion(int value) {
-            Value = (EXRVersionFlags)value;
-            Verify();
-        }
+    public bool HasNonImageParts => Value.HasFlag(EXRVersionFlags.NonImageParts);
 
-        private void Verify() {
-            if (IsSinglePartTiled) {
-                // below bits must be 0
-                if (IsMultiPart || HasNonImageParts) {
-                    throw new EXRFormatException("Invalid or corrupt EXR version: Version's single part bit was set, but multi part and/or non image data bits were also set.");
-                }
-            }
-        }
+    public bool IsMultiPart => Value.HasFlag(EXRVersionFlags.MultiPart);
 
-        public int Version {
-            get {
-                return (int)Value & 0xFF;
-            }
-        }
+    public int MaxNameLength => HasLongNames ? 255 : 31;
 
-        public bool IsSinglePartTiled {
-            get {
-                return Value.HasFlag(EXRVersionFlags.IsSinglePartTiled);
-            }
-        }
-
-        public bool HasLongNames {
-            get {
-                return Value.HasFlag(EXRVersionFlags.LongNames);
-            }
-        }
-
-        public bool HasNonImageParts {
-            get {
-                return Value.HasFlag(EXRVersionFlags.NonImageParts);
-            }
-        }
-
-        public bool IsMultiPart {
-            get {
-                return Value.HasFlag(EXRVersionFlags.MultiPart);
-            }
-        }
-
-        public int MaxNameLength {
-            get {
-                return HasLongNames ? 255 : 31;
-            }
+    private void Verify()
+    {
+        if (IsSinglePartTiled && (IsMultiPart || HasNonImageParts))
+        {
+            throw new EXRFormatException("Invalid or corrupt EXR version: Version's single part bit was set, but multi part and/or non image data bits were also set.");
         }
     }
 }

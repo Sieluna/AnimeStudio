@@ -1,177 +1,118 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace EXR {
-    public class EXRFile {
-        public EXRVersion Version { get; protected set; }
-        public List<EXRHeader> Headers { get; protected set; }
-        public List<OffsetTable> OffsetTables { get; protected set; }
-        public List<EXRPart> Parts { get; protected set; }
+namespace EXR;
 
-        public EXRFile() {
+public class EXRFile
+{
+    public EXRVersion Version { get; protected set; }
+    public List<EXRHeader> Headers { get; protected set; } = [];
+    public List<OffsetTable> OffsetTables { get; protected set; } = [];
+    public List<EXRPart> Parts { get; protected set; } = [];
+
+    public void Read(IEXRReader reader)
+    {
+        if (reader.ReadInt32() != 20000630)
+        {
+            throw new EXRFormatException("Invalid or corrupt EXR layout: First four bytes were not 20000630.");
         }
 
-        public void Read(IEXRReader reader) {
-            // first four bytes of an OpenEXR file are always 0x76, 0x2f, 0x31 and 0x01 or 20000630
-            var magicNumber = reader.ReadInt32();
-            if (magicNumber != 20000630) {
-                throw new EXRFormatException("Invalid or corrupt EXR layout: First four bytes were not 20000630.");
-            }
+        Version = new EXRVersion(reader.ReadInt32());
 
-            var versionValue = reader.ReadInt32();
-            Version = new EXRVersion(versionValue);
-
-            Headers = new List<EXRHeader>();
-            if (Version.IsMultiPart) {
-                while (true) {
-                    var header = new EXRHeader();
-                    header.Read(this, reader);
-                    if (header.IsEmpty) {
-                        break;
-                    }
-                    Headers.Add(header);
-                }
-                throw new NotImplementedException("Multi part EXR files are not currently supported");
-            }
-            else {
-                if (Version.IsSinglePartTiled) {
-                    throw new NotImplementedException("Tiled EXR files are not currently supported");
-                }
-
+        Headers = [];
+        if (Version.IsMultiPart)
+        {
+            while (true)
+            {
                 var header = new EXRHeader();
                 header.Read(this, reader);
+                if (header.IsEmpty)
+                {
+                    break;
+                }
+
                 Headers.Add(header);
             }
 
-            OffsetTables = new List<OffsetTable>();
-            foreach (var header in Headers) {
-                int offsetTableSize;
-
-                if (Version.IsMultiPart) {
-                    offsetTableSize = header.ChunkCount;
-                }
-                else if (Version.IsSinglePartTiled) {
-                    // TODO: Implement
-                    offsetTableSize = 0;
-                }
-                else {
-                    var compression = header.Compression;
-                    var dataWindow = header.DataWindow;
-                    var linesPerBlock = GetScanLinesPerBlock(compression);
-                    var blockCount = (int)Math.Ceiling(dataWindow.Height / (double)linesPerBlock);
-
-                    offsetTableSize = blockCount;
-                }
-
-                var table = new OffsetTable(offsetTableSize);
-                table.Read(reader, offsetTableSize);
-                OffsetTables.Add(table);
-            }
+            throw new NotImplementedException("Multi part EXR files are not currently supported");
         }
 
-        public static int GetScanLinesPerBlock(EXRCompression compression) {
-            switch (compression) {
-                default:
-                    return 1;
-                case EXRCompression.ZIP:
-                case EXRCompression.PXR24:
-                    return 16;
-                case EXRCompression.PIZ:
-                case EXRCompression.B44:
-                case EXRCompression.B44A:
-                    return 32;
-            }
+        if (Version.IsSinglePartTiled)
+        {
+            throw new NotImplementedException("Tiled EXR files are not currently supported");
         }
 
-        public static int GetBytesPerPixel(ImageDestFormat format) {
-            switch (format) {
-                case ImageDestFormat.RGB16:
-                case ImageDestFormat.BGR16:
-                    return 6;
-                case ImageDestFormat.RGB32:
-                case ImageDestFormat.BGR32:
-                    return 12;
-                case ImageDestFormat.RGB8:
-                case ImageDestFormat.BGR8:
-                    return 3;
-                case ImageDestFormat.PremultipliedRGBA16:
-                case ImageDestFormat.PremultipliedBGRA16:
-                case ImageDestFormat.RGBA16:
-                case ImageDestFormat.BGRA16:
-                    return 8;
-                case ImageDestFormat.PremultipliedRGBA32:
-                case ImageDestFormat.PremultipliedBGRA32:
-                case ImageDestFormat.RGBA32:
-                case ImageDestFormat.BGRA32:
-                    return 16;
-                case ImageDestFormat.PremultipliedRGBA8:
-                case ImageDestFormat.PremultipliedBGRA8:
-                case ImageDestFormat.RGBA8:
-                case ImageDestFormat.BGRA8:
-                    return 4;
-            }
-            throw new ArgumentException("Unrecognized destination format", "format");
-        }
+        var singleHeader = new EXRHeader();
+        singleHeader.Read(this, reader);
+        Headers.Add(singleHeader);
 
-        public static int GetBitsPerPixel(ImageDestFormat format) {
-            switch (format) {
-                case ImageDestFormat.PremultipliedRGBA32:
-                case ImageDestFormat.PremultipliedBGRA32:
-                case ImageDestFormat.RGBA32:
-                case ImageDestFormat.BGRA32:
-                case ImageDestFormat.RGB32:
-                case ImageDestFormat.BGR32:
-                    return 32;
-                case ImageDestFormat.PremultipliedRGBA8:
-                case ImageDestFormat.PremultipliedBGRA8:
-                case ImageDestFormat.RGBA8:
-                case ImageDestFormat.BGRA8:
-                case ImageDestFormat.RGB8:
-                case ImageDestFormat.BGR8:
-                    return 8;
-                case ImageDestFormat.RGB16:
-                case ImageDestFormat.BGR16:
-                case ImageDestFormat.PremultipliedRGBA16:
-                case ImageDestFormat.PremultipliedBGRA16:
-                case ImageDestFormat.RGBA16:
-                case ImageDestFormat.BGRA16:
-                    return 16;
-            }
-            throw new ArgumentException("Unrecognized destination format", "format");
+        OffsetTables = [];
+        foreach (var header in Headers)
+        {
+            int offsetTableSize = Version.IsMultiPart
+                ? header.ChunkCount
+                : Version.IsSinglePartTiled
+                    ? 0
+                    : (int)Math.Ceiling(header.DataWindow.Height / (double)GetScanLinesPerBlock(header.Compression));
+
+            var table = new OffsetTable(offsetTableSize);
+            table.Read(reader, offsetTableSize);
+            OffsetTables.Add(table);
         }
+    }
+
+    public static int GetScanLinesPerBlock(EXRCompression compression) => compression switch
+    {
+        EXRCompression.ZIP or EXRCompression.PXR24 => 16,
+        EXRCompression.PIZ or EXRCompression.B44 or EXRCompression.B44A => 32,
+        _ => 1
+    };
+
+    public static int GetBytesPerPixel(ImageDestFormat format) => format switch
+    {
+        ImageDestFormat.RGB16 or ImageDestFormat.BGR16 => 6,
+        ImageDestFormat.RGB32 or ImageDestFormat.BGR32 => 12,
+        ImageDestFormat.RGB8 or ImageDestFormat.BGR8 => 3,
+        ImageDestFormat.PremultipliedRGBA16 or ImageDestFormat.PremultipliedBGRA16 or ImageDestFormat.RGBA16 or ImageDestFormat.BGRA16 => 8,
+        ImageDestFormat.PremultipliedRGBA32 or ImageDestFormat.PremultipliedBGRA32 or ImageDestFormat.RGBA32 or ImageDestFormat.BGRA32 => 16,
+        ImageDestFormat.PremultipliedRGBA8 or ImageDestFormat.PremultipliedBGRA8 or ImageDestFormat.RGBA8 or ImageDestFormat.BGRA8 => 4,
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unrecognized destination format")
+    };
+
+    public static int GetBitsPerPixel(ImageDestFormat format) => format switch
+    {
+        ImageDestFormat.PremultipliedRGBA32 or ImageDestFormat.PremultipliedBGRA32 or ImageDestFormat.RGBA32 or ImageDestFormat.BGRA32 or ImageDestFormat.RGB32 or ImageDestFormat.BGR32 => 32,
+        ImageDestFormat.PremultipliedRGBA8 or ImageDestFormat.PremultipliedBGRA8 or ImageDestFormat.RGBA8 or ImageDestFormat.BGRA8 or ImageDestFormat.RGB8 or ImageDestFormat.BGR8 => 8,
+        ImageDestFormat.RGB16 or ImageDestFormat.BGR16 or ImageDestFormat.PremultipliedRGBA16 or ImageDestFormat.PremultipliedBGRA16 or ImageDestFormat.RGBA16 or ImageDestFormat.BGRA16 => 16,
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unrecognized destination format")
+    };
 
 #if DOTNET
-        public static EXRFile FromFile(string file) {
-            var reader = new EXRReader(new FileStream(file, FileMode.Open, FileAccess.Read));
-            var result = FromReader(reader);
-            reader.Dispose();
-            return result;
-        }
+    public static EXRFile FromFile(string file)
+    {
+        using var reader = new EXRReader(new FileStream(file, FileMode.Open, FileAccess.Read));
+        return FromReader(reader);
+    }
 #endif
 
-        public static EXRFile FromStream(Stream stream) {
-            var reader = new EXRReader(new BinaryReader(stream));
-            var result = FromReader(reader);
-            reader.Dispose();
-            return result;
+    public static EXRFile FromStream(Stream stream)
+    {
+        using var reader = new EXRReader(new BinaryReader(stream));
+        return FromReader(reader);
+    }
+
+    public static EXRFile FromReader(IEXRReader reader)
+    {
+        var image = new EXRFile();
+        image.Read(reader);
+
+        image.Parts = [];
+        for (var i = 0; i < image.Headers.Count; i++)
+        {
+            image.Parts.Add(new EXRPart(image.Version, image.Headers[i], image.OffsetTables[i]));
         }
 
-        public static EXRFile FromReader(IEXRReader reader) {
-            var img = new EXRFile();
-            img.Read(reader);
-
-            img.Parts = new List<EXRPart>();
-            for (int i = 0; i < img.Headers.Count; i++) {
-                var part = new EXRPart(img.Version, img.Headers[i], img.OffsetTables[i]);
-                img.Parts.Add(part);
-                //part.ReadPixelData(reader);
-            }
-
-            return img;
-        }
+        return image;
     }
 }

@@ -1,34 +1,31 @@
-﻿using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace EXR {
-    public class OffsetTable : IEnumerable<uint> {
-        public List<uint> Offsets { get; set; }
+namespace EXR;
 
-        public OffsetTable() {
-            Offsets = new List<uint>();
-        }
+public class OffsetTable : IEnumerable<uint>
+{
+    public List<uint> Offsets { get; set; }
 
-        public OffsetTable(int capacity) {
-            Offsets = new List<uint>(capacity);
-        }
+    public OffsetTable() : this(0)
+    {
+    }
 
-        public void Read(IEXRReader reader, int count) {
-            for (int i = 0; i < count; i++) {
-                Offsets.Add(reader.ReadUInt32());
-                reader.ReadUInt32(); // skip 4 bytes because we're using uints not ulongs
-            }
-        }
+    public OffsetTable(int capacity)
+    {
+        Offsets = new List<uint>(capacity);
+    }
 
-        public IEnumerator<uint> GetEnumerator() {
-            return Offsets.GetEnumerator();
-        }
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() {
-            return GetEnumerator();
+    public void Read(IEXRReader reader, int count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            Offsets.Add(reader.ReadUInt32());
+            _ = reader.ReadUInt32();
         }
     }
+
+    public IEnumerator<uint> GetEnumerator() => Offsets.GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

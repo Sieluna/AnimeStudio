@@ -32,85 +32,104 @@ namespace AnimeStudio.GUI
 
                 if (isHDR)
                 {
-                    if (exportAsExr)
+                    int rawDataSize = (int)m_Texture2D.image_data.Size;
+                    var buff = ArrayPool<byte>.Shared.Rent(rawDataSize);
+                    try
                     {
-                        if (!Properties.Settings.Default.enableEXRModule)
+                        m_Texture2D.image_data.GetData(buff);
+
+                        if (exportAsExr)
                         {
-                            Logger.Warning($"Skipped EXR export for {item.Text}: EXR module is not enabled.");
-                        }
-                        else
-                        {
-                            Logger.Warning($"Skipped EXR export for {item.Text}: embedded EXR module currently supports import only (no EXR writer linked).");
-                        }
-                        return false;
-                    }
-
-                    var buff = ArrayPool<Byte>.Shared.Rent((int)m_Texture2D.image_data.Size);
-                    m_Texture2D.image_data.GetData(buff);
-
-                    int outPutSize = m_Texture2D.m_Width * m_Texture2D.m_Height * 4;
-                    var stream = ArrayPool<Half>.Shared.Rent(outPutSize);
-
-                    for (var i = 0; i < outPutSize; i += 4)
-                    {
-                        stream[i] = Half.ToHalf(buff, i * 2);
-                        stream[i + 1] = Half.ToHalf(buff, i * 2 + 2);
-                        stream[i + 2] = Half.ToHalf(buff, i * 2 + 4);
-                        stream[i + 3] = Half.ToHalf(buff, i * 2 + 6);
-                    }
-
-                    var flippedStream = ArrayPool<Half>.Shared.Rent(outPutSize);
-
-                    for (int y = 0; y < m_Texture2D.m_Height; y++)
-                    {
-                        int rowSize = m_Texture2D.m_Width * 4;
-                        int srcRowStart = y * rowSize;
-                        int destRowStart = (m_Texture2D.m_Height - y - 1) * rowSize;
-
-                        Array.Copy(stream, srcRowStart, flippedStream, destRowStart, rowSize);
-                    }
-
-                    String header =
-                        "#?RADIANCE\n" +
-                        "PRIMARIES=0 0 0 0 0 0 0 0\nFORMAT=32-bit_rle_rgbe\n\n" +
-                        "-Y " + m_Texture2D.m_Height.ToString() + " +X " +
-                        m_Texture2D.m_Width.ToString() + "\n";
-
-                    using (var file = new BinaryWriter(File.OpenWrite(exportFullPath)))
-                    {
-                        file.Write(System.Text.Encoding.ASCII.GetBytes(header));
-
-                        // from https://github.com/Opioid/rgbe/blob/master/encode.go
-                        for (int i = 0; i != outPutSize; i += 4)
-                        {
-                            float maxComponent = Math.Max(flippedStream[i], System.Math.Max(flippedStream[i + 1], flippedStream[i + 2]));
-                            byte[] rgbe = new byte[4];
-
-                            if (maxComponent < 1e-32f)
+                            if (!Properties.Settings.Default.enableEXRModule)
                             {
-                                rgbe[0] = rgbe[1] = rgbe[2] = rgbe[3] = 0;
-                            } else
-                            {
-                                int exponent;
-                                float mantissa = (float)Double.Frexp((double)maxComponent, out exponent);
-
-                                mantissa *= 256.0f / maxComponent;
-
-                                rgbe[0] = (byte)(flippedStream[i] * mantissa);
-                                rgbe[1] = (byte)(flippedStream[i + 1] * mantissa);
-                                rgbe[2] = (byte)(flippedStream[i + 2] * mantissa);
-
-                                rgbe[3] = (byte)(exponent + 128);
+                                Logger.Warning($"Skipped EXR export for {item.Text}: EXR module is not enabled.");
+                                return false;
                             }
 
-                            foreach (byte channel in rgbe)
+                            if (!EXRModule.TryExportRgbaHalf(exportFullPath, buff, rawDataSize, m_Texture2D.m_Width, m_Texture2D.m_Height, true, out var exrError))
                             {
-                                file.Write(channel);
+                                Logger.Warning($"Failed EXR export for {item.Text}: {exrError}");
+                                return false;
                             }
+
+                            return true;
+                        }
+
+                        int outPutSize = m_Texture2D.m_Width * m_Texture2D.m_Height * 4;
+                        var stream = ArrayPool<Half>.Shared.Rent(outPutSize);
+                        var flippedStream = ArrayPool<Half>.Shared.Rent(outPutSize);
+                        try
+                        {
+                            for (var i = 0; i < outPutSize; i += 4)
+                            {
+                                stream[i] = Half.ToHalf(buff, i * 2);
+                                stream[i + 1] = Half.ToHalf(buff, i * 2 + 2);
+                                stream[i + 2] = Half.ToHalf(buff, i * 2 + 4);
+                                stream[i + 3] = Half.ToHalf(buff, i * 2 + 6);
+                            }
+
+                            for (int y = 0; y < m_Texture2D.m_Height; y++)
+                            {
+                                int rowSize = m_Texture2D.m_Width * 4;
+                                int srcRowStart = y * rowSize;
+                                int destRowStart = (m_Texture2D.m_Height - y - 1) * rowSize;
+
+                                Array.Copy(stream, srcRowStart, flippedStream, destRowStart, rowSize);
+                            }
+
+                            String header =
+                                "#?RADIANCE\n" +
+                                "PRIMARIES=0 0 0 0 0 0 0 0\nFORMAT=32-bit_rle_rgbe\n\n" +
+                                "-Y " + m_Texture2D.m_Height.ToString() + " +X " +
+                                m_Texture2D.m_Width.ToString() + "\n";
+
+                            using (var file = new BinaryWriter(File.OpenWrite(exportFullPath)))
+                            {
+                                file.Write(System.Text.Encoding.ASCII.GetBytes(header));
+
+                                // from https://github.com/Opioid/rgbe/blob/master/encode.go
+                                for (int i = 0; i != outPutSize; i += 4)
+                                {
+                                    float maxComponent = Math.Max(flippedStream[i], System.Math.Max(flippedStream[i + 1], flippedStream[i + 2]));
+                                    byte[] rgbe = new byte[4];
+
+                                    if (maxComponent < 1e-32f)
+                                    {
+                                        rgbe[0] = rgbe[1] = rgbe[2] = rgbe[3] = 0;
+                                    }
+                                    else
+                                    {
+                                        int exponent;
+                                        float mantissa = (float)Double.Frexp((double)maxComponent, out exponent);
+
+                                        mantissa *= 256.0f / maxComponent;
+
+                                        rgbe[0] = (byte)(flippedStream[i] * mantissa);
+                                        rgbe[1] = (byte)(flippedStream[i + 1] * mantissa);
+                                        rgbe[2] = (byte)(flippedStream[i + 2] * mantissa);
+
+                                        rgbe[3] = (byte)(exponent + 128);
+                                    }
+
+                                    foreach (byte channel in rgbe)
+                                    {
+                                        file.Write(channel);
+                                    }
+                                }
+                            }
+
+                            return true;
+                        }
+                        finally
+                        {
+                            ArrayPool<Half>.Shared.Return(stream);
+                            ArrayPool<Half>.Shared.Return(flippedStream);
                         }
                     }
-
-                    return true;
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(buff);
+                    }
                 } else
                 {
                     var image = m_Texture2D.ConvertToImage(true);

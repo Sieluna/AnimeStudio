@@ -1,226 +1,197 @@
-﻿using EXR.AttributeTypes;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using EXR.AttributeTypes;
 
-namespace EXR {
-    public class EXRAttribute {
-        public string Name { get; protected set; }
-        public string Type { get; protected set; }
-        public int Size { get; protected set; }
-        public object Value { get; protected set; }
+namespace EXR;
 
-        public EXRAttribute() {
+public class EXRAttribute
+{
+    public string Name { get; protected set; } = string.Empty;
+    public string Type { get; protected set; } = string.Empty;
+    public int Size { get; protected set; }
+    public object Value { get; protected set; }
+
+    public static bool Read(EXRFile file, IEXRReader reader, out EXRAttribute attribute)
+    {
+        attribute = new EXRAttribute();
+        return attribute.Read(file, reader);
+    }
+
+    public override string ToString() => Value?.ToString() ?? string.Empty;
+
+    public bool Read(EXRFile file, IEXRReader reader)
+    {
+        var maxLen = file.Version.MaxNameLength;
+
+        Name = ReadHeaderToken(reader, maxLen, "name");
+        if (Name.Length == 0)
+        {
+            return false;
         }
 
-        public static bool Read(EXRFile file, IEXRReader reader, out EXRAttribute attribute) {
-            attribute = new EXRAttribute();
-            return attribute.Read(file, reader);
+        Type = ReadHeaderToken(reader, maxLen, $"type for '{Name}'");
+        if (Type.Length == 0)
+        {
+            throw new EXRFormatException($"Invalid or corrupt EXR header attribute type for '{Name}': Cannot be an empty string.");
         }
 
-        public override string ToString() {
-            return Value.ToString();
-        }
+        Size = reader.ReadInt32();
+        Value = ReadValue(file, reader);
+        return true;
+    }
 
-        /// <summary>
-        /// Returns true unless this is the end of the header
-        /// </summary>
-        public bool Read(EXRFile file, IEXRReader reader) {
-            var maxLen = file.Version.MaxNameLength;
+    private object ReadValue(EXRFile file, IEXRReader reader)
+    {
+        switch (Type)
+        {
+            case "box2i":
+                EnsureSize(16);
+                return new Box2I(reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32());
+            case "box2f":
+                EnsureSize(16);
+                return new Box2F(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            case "chromaticities":
+                EnsureSize(32);
+                return new Chromaticities(
+                    reader.ReadSingle(), reader.ReadSingle(),
+                    reader.ReadSingle(), reader.ReadSingle(),
+                    reader.ReadSingle(), reader.ReadSingle(),
+                    reader.ReadSingle(), reader.ReadSingle());
+            case "compression":
+                EnsureSize(1);
+                return (EXRCompression)reader.ReadByte();
+            case "double":
+                EnsureSize(8);
+                return reader.ReadDouble();
+            case "envmap":
+                EnsureSize(1);
+                return (EnvMap)reader.ReadByte();
+            case "float":
+                EnsureSize(4);
+                return reader.ReadSingle();
+            case "int":
+                EnsureSize(4);
+                return reader.ReadInt32();
+            case "keycode":
+                EnsureSize(28);
+                return new KeyCode(
+                    reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32(),
+                    reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32());
+            case "lineOrder":
+                EnsureSize(1);
+                return (LineOrder)reader.ReadByte();
+            case "m33f":
+                EnsureSize(36);
+                return new M33F(
+                    reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
+                    reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
+                    reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            case "m44f":
+                EnsureSize(64);
+                return new M44F(
+                    reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
+                    reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
+                    reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
+                    reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            case "rational":
+                EnsureSize(8);
+                return new Rational(reader.ReadInt32(), reader.ReadUInt32());
+            case "string":
+                if (Size < 0)
+                {
+                    throw BuildSizeException("Invalid Size");
+                }
 
-            try {
-                Name = reader.ReadNullTerminatedString(maxLen);
+                return reader.ReadString(Size);
+            case "stringvector":
+                return ReadStringVector(reader);
+            case "tiledesc":
+                EnsureSize(9);
+                return new TileDesc(reader.ReadUInt32(), reader.ReadUInt32(), reader.ReadByte());
+            case "timecode":
+                EnsureSize(8);
+                return new TimeCode(reader.ReadUInt32(), reader.ReadUInt32());
+            case "v2i":
+                EnsureSize(8);
+                return new V2I(reader.ReadInt32(), reader.ReadInt32());
+            case "v2f":
+                EnsureSize(8);
+                return new V2F(reader.ReadSingle(), reader.ReadSingle());
+            case "v3i":
+                EnsureSize(12);
+                return new V3I(reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32());
+            case "v3f":
+                EnsureSize(12);
+                return new V3F(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            case "chlist":
+            {
+                var channelList = new ChannelList();
+                try
+                {
+                    channelList.Read(file, reader, Size);
+                }
+                catch (Exception ex)
+                {
+                    throw new EXRFormatException($"Invalid or corrupt EXR header attribute '{Name}' of type chlist: {ex.Message}", ex);
+                }
+
+                return channelList;
             }
-            catch (Exception e) {
-                throw new EXRFormatException("Invalid or corrupt EXR header attribute name: " + e.Message, e);
-            }
-            if (Name == "") {
-                return false;
-            }
-
-            try {
-                Type = reader.ReadNullTerminatedString(maxLen);
-            }
-            catch (Exception e) {
-                throw new EXRFormatException("Invalid or corrupt EXR header attribute type for '" + Name + "': " + e.Message, e);
-            }
-            if (Type == "") {
-                throw new EXRFormatException("Invalid or corrupt EXR header attribute type for '" + Name + "': Cannot be an empty string.");
-            }
-
-            Size = reader.ReadInt32();
-
-            switch (Type) {
-                case "box2i":
-                    if (Size != 16) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type box2i: Size must be 16 bytes, was " + Size + ".");
-                    }
-                    Value = new Box2I(reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32());
-                    break;
-                case "box2f":
-                    if (Size != 16) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type box2f: Size must be 16 bytes, was " + Size + ".");
-                    }
-                    Value = new Box2F(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                    break;
-                case "chromaticities":
-                    if (Size != 32) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type chromaticities: Size must be 32 bytes, was " + Size + ".");
-                    }
-                    Value = new Chromaticities(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                    break;
-                case "compression":
-                    if (Size != 1) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type compression: Size must be 1 byte, was " + Size + ".");
-                    }
-                    Value = (EXRCompression)reader.ReadByte();
-                    break;
-                case "double":
-                    if (Size != 8) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type double: Size must be 8 bytes, was " + Size + ".");
-                    }
-                    Value = reader.ReadDouble();
-                    break;
-                case "envmap":
-                    if (Size != 1) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type envmap: Size must be 1 byte, was " + Size + ".");
-                    }
-                    Value = (EnvMap)reader.ReadByte();
-                    break;
-                case "float":
-                    if (Size != 4) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type float: Size must be 4 bytes, was " + Size + ".");
-                    }
-                    Value = reader.ReadSingle();
-                    break;
-                case "int":
-                    if (Size != 4) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type int: Size must be 4 bytes, was " + Size + ".");
-                    }
-                    Value = reader.ReadInt32();
-                    break;
-                case "keycode":
-                    if (Size != 28) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type keycode: Size must be 28 bytes, was " + Size + ".");
-                    }
-                    Value = new KeyCode(reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32());
-                    break;
-                case "lineOrder":
-                    if (Size != 1) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type lineOrder: Size must be 1 byte, was " + Size + ".");
-                    }
-                    Value = (LineOrder)reader.ReadByte();
-                    break;
-                case "m33f":
-                    if (Size != 36) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type m33f: Size must be 36 bytes, was " + Size + ".");
-                    }
-                    Value = new M33F(
-                        reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), 
-                        reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), 
-                        reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                    break;
-                case "m44f":
-                    if (Size != 64) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type m44f: Size must be 64 bytes, was " + Size + ".");
-                    }
-                    Value = new M44F(
-                        reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), 
-                        reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
-                        reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
-                        reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                    break;
-                case "rational":
-                    if (Size != 8) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type rational: Size must be 8 bytes, was " + Size + ".");
-                    }
-                    Value = new Rational(reader.ReadInt32(), reader.ReadUInt32());
-                    break;
-                case "string":
-                    if (Size < 0) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type string: Invalid Size, was " + Size + ".");
-                    }
-                    Value = reader.ReadString(Size);
-                    break;
-                case "stringvector":
-                    if (Size == 0) {
-                        Value = new List<string>();
-                    }
-                    else if (Size < 4) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type stringvector: Size must be at least 4 bytes or 0 bytes, was " + Size + ".");
-                    }
-                    else {
-                        var strings = new List<string>();
-                        Value = strings;
-                        var bytesRead = 0;
-
-                        while (bytesRead < Size) {
-                            var loc = reader.Position;
-                            var str = reader.ReadString();
-                            strings.Add(str);
-                            bytesRead += reader.Position - loc;
-                        }
-
-                        if (bytesRead != Size) {
-                            throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type stringvector: Read " + bytesRead + " bytes but Size was " + Size + ".");
-                        }
-                    }
-                    break;
-                case "tiledesc":
-                    if (Size != 9) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type tiledesc: Size must be 9 bytes, was " + Size + ".");
-                    }
-                    Value = new TileDesc(reader.ReadUInt32(), reader.ReadUInt32(), reader.ReadByte());
-                    break;
-                case "timecode":
-                    if (Size != 8) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type timecode: Size must be 8 bytes, was " + Size + ".");
-                    }
-                    Value = new TimeCode(reader.ReadUInt32(), reader.ReadUInt32());
-                    break;
-                case "v2i":
-                    if (Size != 8) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type v2i: Size must be 8 bytes, was " + Size + ".");
-                    }
-                    Value = new V2I(reader.ReadInt32(), reader.ReadInt32());
-                    break;
-                case "v2f":
-                    if (Size != 8) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type v2f: Size must be 8 bytes, was " + Size + ".");
-                    }
-                    Value = new V2F(reader.ReadSingle(), reader.ReadSingle());
-                    break;
-                case "v3i":
-                    if (Size != 12) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type v3i: Size must be 12 bytes, was " + Size + ".");
-                    }
-                    Value = new V3I(reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32());
-                    break;
-                case "v3f":
-                    if (Size != 12) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type v3f: Size must be 12 bytes, was " + Size + ".");
-                    }
-                    Value = new V3F(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                    break;
-                case "chlist":
-                    var chlist = new ChannelList();
-                    try {
-                        chlist.Read(file, reader, Size);
-                    }
-                    catch (Exception e) {
-                        throw new EXRFormatException("Invalid or corrupt EXR header attribute '" + Name + "' of type chlist: " + e.Message, e);
-                    }
-                    Value = chlist;
-                    break;
-                case "preview":
-                default:
-                    Value = reader.ReadBytes(Size);
-                    break;
-            }
-
-            return true;
+            case "preview":
+            default:
+                return reader.ReadBytes(Size);
         }
     }
+
+    private List<string> ReadStringVector(IEXRReader reader)
+    {
+        if (Size == 0)
+        {
+            return [];
+        }
+
+        if (Size < 4)
+        {
+            throw BuildSizeException("Size must be at least 4 bytes or 0 bytes");
+        }
+
+        var values = new List<string>();
+        var bytesRead = 0;
+        while (bytesRead < Size)
+        {
+            var start = reader.Position;
+            values.Add(reader.ReadString());
+            bytesRead += reader.Position - start;
+        }
+
+        if (bytesRead != Size)
+        {
+            throw new EXRFormatException($"Invalid or corrupt EXR header attribute '{Name}' of type stringvector: Read {bytesRead} bytes but Size was {Size}.");
+        }
+
+        return values;
+    }
+
+    private static string ReadHeaderToken(IEXRReader reader, int maxLen, string segment)
+    {
+        try
+        {
+            return reader.ReadNullTerminatedString(maxLen);
+        }
+        catch (Exception ex)
+        {
+            throw new EXRFormatException($"Invalid or corrupt EXR header attribute {segment}: {ex.Message}", ex);
+        }
+    }
+
+    private void EnsureSize(int expected)
+    {
+        if (Size != expected)
+        {
+            throw BuildSizeException($"Size must be {expected} bytes");
+        }
+    }
+
+    private EXRFormatException BuildSizeException(string detail) =>
+        new($"Invalid or corrupt EXR header attribute '{Name}' of type {Type}: {detail}, was {Size}.");
 }

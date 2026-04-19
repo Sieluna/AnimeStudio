@@ -74,58 +74,55 @@ namespace EXR {
             }
         }
 
+        private ImageSourceFormat ResolveSourceFormat(bool includeAlpha) {
+            if (HalfChannels.ContainsKey("R") && HalfChannels.ContainsKey("G") && HalfChannels.ContainsKey("B")) {
+                return includeAlpha ? ImageSourceFormat.HalfRGBA : ImageSourceFormat.HalfRGB;
+            }
+
+            if (FloatChannels.ContainsKey("R") && FloatChannels.ContainsKey("G") && FloatChannels.ContainsKey("B")) {
+                return includeAlpha ? ImageSourceFormat.SingleRGBA : ImageSourceFormat.SingleRGB;
+            }
+
+            throw new EXRFormatException("Unrecognized EXR image format, did not contain half/single RGB color channels");
+        }
+
+        private static ImageDestFormat GetDestFormat(ImageSourceFormat srcFormat, ChannelConfiguration channels, bool premultiplied, int bitsPerChannel) {
+            var hasAlpha = srcFormat == ImageSourceFormat.HalfRGBA || srcFormat == ImageSourceFormat.SingleRGBA;
+            var bgr = channels == ChannelConfiguration.BGR;
+
+            return (hasAlpha, premultiplied, bgr, bitsPerChannel) switch {
+                (true, true, true, 16) => ImageDestFormat.PremultipliedBGRA16,
+                (true, true, false, 16) => ImageDestFormat.PremultipliedRGBA16,
+                (true, false, true, 16) => ImageDestFormat.BGRA16,
+                (true, false, false, 16) => ImageDestFormat.RGBA16,
+                (true, true, true, 32) => ImageDestFormat.PremultipliedBGRA32,
+                (true, true, false, 32) => ImageDestFormat.PremultipliedRGBA32,
+                (true, false, true, 32) => ImageDestFormat.BGRA32,
+                (true, false, false, 32) => ImageDestFormat.RGBA32,
+                (false, _, true, 16) => ImageDestFormat.BGR16,
+                (false, _, false, 16) => ImageDestFormat.RGB16,
+                (false, _, true, 32) => ImageDestFormat.BGR32,
+                (false, _, false, 32) => ImageDestFormat.RGB32,
+                _ => throw new ArgumentOutOfRangeException(nameof(bitsPerChannel), bitsPerChannel, "Unsupported destination bit depth.")
+            };
+        }
+
         /// <summary>
         /// Gets RGB color channels as an interleaved array of Halfs. If this EXRPart's HasAlpha property is true,
         /// this will include the alpha channel in the array.
         /// </summary>
-        public Half[] GetHalfs(ChannelConfiguration channels, bool premultiplied, GammaEncoding gamma) {
-            return GetHalfs(channels, premultiplied, gamma, HasAlpha);
-        }
+        public Half[] GetHalfs(ChannelConfiguration channels, bool premultiplied, GammaEncoding gamma) => GetHalfs(channels, premultiplied, gamma, HasAlpha);
 
         /// <summary>
         /// Gets RGB color channels as an interleaved array of Halfs. If includeAlpha is true,
         /// this will include the alpha channel in the array.
         /// </summary>
-        public Half[] GetHalfs(ChannelConfiguration channels, bool premultiplied, GammaEncoding gamma, bool includeAlpha) {
-            ImageSourceFormat srcFormat;
-            if (HalfChannels.ContainsKey("R") && HalfChannels.ContainsKey("G") && HalfChannels.ContainsKey("B")) {
-                srcFormat = includeAlpha ? ImageSourceFormat.HalfRGBA : ImageSourceFormat.HalfRGB;
-            }
-            else if (FloatChannels.ContainsKey("R") && FloatChannels.ContainsKey("G") && FloatChannels.ContainsKey("B")) {
-                srcFormat = includeAlpha ? ImageSourceFormat.SingleRGBA : ImageSourceFormat.SingleRGB;
-            }
-            else {
-                throw new EXRFormatException("Unrecognized EXR image format, did not contain half/single RGB color channels");
-            }
-            return GetHalfs(srcFormat, channels, premultiplied, gamma);
-        }
+        public Half[] GetHalfs(ChannelConfiguration channels, bool premultiplied, GammaEncoding gamma, bool includeAlpha) =>
+            GetHalfs(ResolveSourceFormat(includeAlpha), channels, premultiplied, gamma);
 
         public Half[] GetHalfs(ImageSourceFormat srcFormat, ChannelConfiguration channels, bool premultiplied, GammaEncoding gamma) {
-            ImageDestFormat destFormat;
-            if (srcFormat == ImageSourceFormat.HalfRGBA || srcFormat == ImageSourceFormat.SingleRGBA) {
-                if (premultiplied) {
-                    destFormat =
-                        channels == ChannelConfiguration.BGR ?
-                        ImageDestFormat.PremultipliedBGRA16 :
-                        ImageDestFormat.PremultipliedRGBA16;
-                }
-                else {
-                    destFormat =
-                        channels == ChannelConfiguration.BGR ?
-                        ImageDestFormat.BGRA16 :
-                        ImageDestFormat.RGBA16;
-                }
-            }
-            else {
-                destFormat =
-                    channels == ChannelConfiguration.BGR ?
-                    ImageDestFormat.BGR16 :
-                    ImageDestFormat.RGB16;
-            }
-
+            var destFormat = GetDestFormat(srcFormat, channels, premultiplied, 16);
             var bytesPerPixel = EXRFile.GetBytesPerPixel(destFormat);
-            var channelCount =
-                srcFormat == ImageSourceFormat.SingleRGB || srcFormat == ImageSourceFormat.HalfRGB ? 3 : 4;
 
             var bytes = GetBytes(srcFormat, destFormat, gamma, DataWindow.Width * bytesPerPixel);
             Half[] halfs = new Half[bytes.Length / 2];
@@ -137,54 +134,18 @@ namespace EXR {
         /// Gets RGB color channels as an interleaved array of floats. If this EXRPart's HasAlpha property is true,
         /// this will include the alpha channel in the array.
         /// </summary>
-        public float[] GetFloats(ChannelConfiguration channels, bool premultiplied, GammaEncoding gamma) {
-            return GetFloats(channels, premultiplied, gamma, HasAlpha);
-        }
+        public float[] GetFloats(ChannelConfiguration channels, bool premultiplied, GammaEncoding gamma) => GetFloats(channels, premultiplied, gamma, HasAlpha);
 
         /// <summary>
         /// Gets RGB color channels as an interleaved array of floats. If includeAlpha is true,
         /// this will include the alpha channel in the array.
         /// </summary>
-        public float[] GetFloats(ChannelConfiguration channels, bool premultiplied, GammaEncoding gamma, bool includeAlpha) {
-            ImageSourceFormat srcFormat;
-            if (HalfChannels.ContainsKey("R") && HalfChannels.ContainsKey("G") && HalfChannels.ContainsKey("B")) {
-                srcFormat = includeAlpha ? ImageSourceFormat.HalfRGBA : ImageSourceFormat.HalfRGB;
-            }
-            else if (FloatChannels.ContainsKey("R") && FloatChannels.ContainsKey("G") && FloatChannels.ContainsKey("B")) {
-                srcFormat = includeAlpha ? ImageSourceFormat.SingleRGBA : ImageSourceFormat.SingleRGB;
-            }
-            else {
-                throw new EXRFormatException("Unrecognized EXR image format, did not contain half/single RGB color channels");
-            }
-            return GetFloats(srcFormat, channels, premultiplied, gamma);
-        }
+        public float[] GetFloats(ChannelConfiguration channels, bool premultiplied, GammaEncoding gamma, bool includeAlpha) =>
+            GetFloats(ResolveSourceFormat(includeAlpha), channels, premultiplied, gamma);
 
         public float[] GetFloats(ImageSourceFormat srcFormat, ChannelConfiguration channels, bool premultiplied, GammaEncoding gamma) {
-            ImageDestFormat destFormat;
-            if (srcFormat == ImageSourceFormat.HalfRGBA || srcFormat == ImageSourceFormat.SingleRGBA) {
-                if (premultiplied) {
-                    destFormat = 
-                        channels == ChannelConfiguration.BGR ?
-                        ImageDestFormat.PremultipliedBGRA32 :
-                        ImageDestFormat.PremultipliedRGBA32;
-                }
-                else {
-                    destFormat = 
-                        channels == ChannelConfiguration.BGR ?
-                        ImageDestFormat.BGRA32 :
-                        ImageDestFormat.RGBA32;
-                }
-            }
-            else {
-                destFormat =
-                    channels == ChannelConfiguration.BGR ?
-                    ImageDestFormat.BGR32 :
-                    ImageDestFormat.RGB32;
-            }
-
+            var destFormat = GetDestFormat(srcFormat, channels, premultiplied, 32);
             var bytesPerPixel = EXRFile.GetBytesPerPixel(destFormat);
-            var channelCount = 
-                srcFormat == ImageSourceFormat.SingleRGB || srcFormat == ImageSourceFormat.HalfRGB ? 3 : 4;
 
             var bytes = GetBytes(srcFormat, destFormat, gamma, DataWindow.Width * bytesPerPixel);
             float[] floats = new float[bytes.Length / sizeof(float)];
@@ -192,27 +153,11 @@ namespace EXR {
             return floats;
         }
 
-        public byte[] GetBytes(ImageDestFormat destFormat, GammaEncoding gamma) {
-            return GetBytes(destFormat, gamma, DataWindow.Width * EXRFile.GetBytesPerPixel(destFormat));
-        }
+        public byte[] GetBytes(ImageDestFormat destFormat, GammaEncoding gamma) => GetBytes(destFormat, gamma, DataWindow.Width * EXRFile.GetBytesPerPixel(destFormat));
 
-        public byte[] GetBytes(ImageDestFormat destFormat, GammaEncoding gamma, int stride) {
-            ImageSourceFormat srcFormat;
-            if (HalfChannels.ContainsKey("R") && HalfChannels.ContainsKey("G") && HalfChannels.ContainsKey("B")) {
-                srcFormat = HalfChannels.ContainsKey("A") ? ImageSourceFormat.HalfRGBA : ImageSourceFormat.HalfRGB;
-            }
-            else if (FloatChannels.ContainsKey("R") && FloatChannels.ContainsKey("G") && FloatChannels.ContainsKey("B")) {
-                srcFormat = FloatChannels.ContainsKey("A") ? ImageSourceFormat.SingleRGBA : ImageSourceFormat.SingleRGB;
-            }
-            else {
-                throw new EXRFormatException("Unrecognized EXR image format, did not contain half/single RGB color channels");
-            }
-            return GetBytes(srcFormat, destFormat, gamma, stride);
-        }
+        public byte[] GetBytes(ImageDestFormat destFormat, GammaEncoding gamma, int stride) => GetBytes(ResolveSourceFormat(HasAlpha), destFormat, gamma, stride);
 
-        public byte[] GetBytes(ImageSourceFormat srcFormat, ImageDestFormat destFormat, GammaEncoding gamma) {
-            return GetBytes(srcFormat, destFormat, gamma, DataWindow.Width * EXRFile.GetBytesPerPixel(destFormat));
-        }
+        public byte[] GetBytes(ImageSourceFormat srcFormat, ImageDestFormat destFormat, GammaEncoding gamma) => GetBytes(srcFormat, destFormat, gamma, DataWindow.Width * EXRFile.GetBytesPerPixel(destFormat));
 
         public byte[] GetBytes(ImageSourceFormat srcFormat, ImageDestFormat destFormat, GammaEncoding gamma, int stride) {
             CheckHasData();
@@ -301,7 +246,7 @@ namespace EXR {
                 fg = FloatChannels["G"];
                 fb = FloatChannels["B"];
 
-                if (srcFormat == ImageSourceFormat.HalfRGBA) {
+                if (srcFormat == ImageSourceFormat.SingleRGBA) {
                     if (!FloatChannels.ContainsKey("A")) {
                         throw new ArgumentException("Single type channel A not found", "srcFormat");
                     }
@@ -584,16 +529,14 @@ namespace EXR {
 
 #if DOTNET
         public void Open(string file) {
-            var reader = new EXRReader(new FileStream(file, FileMode.Open, FileAccess.Read));
+            using var reader = new EXRReader(new FileStream(file, FileMode.Open, FileAccess.Read));
             Open(reader);
-            reader.Dispose();
         }
 #endif
 
         public void Open(Stream stream) {
-            var reader = new EXRReader(new BinaryReader(stream));
+            using var reader = new EXRReader(new BinaryReader(stream));
             Open(reader);
-            reader.Dispose();
         }
 
         public void Close() {
@@ -685,9 +628,8 @@ namespace EXR {
         }
 
         public void OpenParallel(ParallelReaderCreationDelegate createReader) {
-            var reader = createReader();
+            using var reader = createReader();
             Open(reader);
-            reader.Dispose();
         }
 #endif
 

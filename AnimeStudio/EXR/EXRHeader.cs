@@ -1,118 +1,86 @@
-﻿using EXR.AttributeTypes;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using EXR.AttributeTypes;
 
-namespace EXR {
-    public class EXRHeader {
-        public static readonly Chromaticities DefaultChromaticities = new Chromaticities(
-            0.6400f, 0.3300f,
-            0.3000f, 0.6000f,
-            0.1500f, 0.0600f,
-            0.3127f, 0.3290f
-        );
+namespace EXR;
 
-        public Dictionary<string, EXRAttribute> Attributes { get; protected set; }
+public class EXRHeader
+{
+    public static readonly Chromaticities DefaultChromaticities = new(
+        0.6400f, 0.3300f,
+        0.3000f, 0.6000f,
+        0.1500f, 0.0600f,
+        0.3127f, 0.3290f);
 
-        public EXRHeader() {
-            Attributes = new Dictionary<string, EXRAttribute>();
+    public Dictionary<string, EXRAttribute> Attributes { get; } = new(StringComparer.Ordinal);
+
+    public void Read(EXRFile file, IEXRReader reader)
+    {
+        while (EXRAttribute.Read(file, reader, out var attribute))
+        {
+            Attributes[attribute.Name] = attribute;
+        }
+    }
+
+    public bool TryGetAttribute<T>(string name, out T result)
+    {
+        if (!Attributes.TryGetValue(name, out var attr))
+        {
+            result = default;
+            return false;
         }
 
-        public void Read(EXRFile file, IEXRReader reader) {
-            EXRAttribute attribute;
-            while (EXRAttribute.Read(file, reader, out attribute)) {
-                Attributes[attribute.Name] = attribute;
-            }
+        if (attr.Value is T typed)
+        {
+            result = typed;
+            return true;
         }
 
-        public bool TryGetAttribute<T>(string name, out T result) {
-            EXRAttribute attr;
-            if (!Attributes.TryGetValue(name, out attr)) {
-                result = default(T);
-                return false;
-            }
+        if (attr.Value is null && default(T) is null)
+        {
+            result = default;
+            return true;
+        }
 
-            if (attr.Value == null) {
-                result = default(T); // assign default value, which will be null for non-value types
-                // return true if not a value type
-                return !typeof(T).IsClass && !typeof(T).IsInterface && !typeof(T).IsArray;
-            }
-            else {
-                if (typeof(T).IsAssignableFrom(attr.Value.GetType())) {
-                    result = (T)attr.Value;
-                    return true;
+        result = default;
+        return false;
+    }
+
+    public bool IsEmpty => Attributes.Count == 0;
+
+    public int ChunkCount => GetRequiredAttribute<int>("chunkCount");
+
+    public Box2I DataWindow => GetRequiredAttribute<Box2I>("dataWindow");
+
+    public EXRCompression Compression => GetRequiredAttribute<EXRCompression>("compression");
+
+    public PartType Type => GetRequiredAttribute<PartType>("type");
+
+    public ChannelList Channels => GetRequiredAttribute<ChannelList>("channels");
+
+    public Chromaticities Chromaticities
+    {
+        get
+        {
+            foreach (var attr in Attributes.Values)
+            {
+                if (attr.Type == "chromaticities" && attr.Value is Chromaticities chromaticities)
+                {
+                    return chromaticities;
                 }
-                else {
-                    result = default(T);
-                    return false;
-                }
             }
+
+            return DefaultChromaticities;
+        }
+    }
+
+    private T GetRequiredAttribute<T>(string name)
+    {
+        if (!TryGetAttribute<T>(name, out var value))
+        {
+            throw new EXRFormatException($"Invalid or corrupt EXR header: Missing {name} attribute.");
         }
 
-        public bool IsEmpty { get { return Attributes.Count == 0; } }
-
-        public int ChunkCount {
-            get {
-                int chunkCount;
-                if (!TryGetAttribute<int>("chunkCount", out chunkCount)) {
-                    throw new EXRFormatException("Invalid or corrupt EXR header: Missing chunkCount attribute.");
-                }
-                return chunkCount;
-            }
-        }
-
-        public Box2I DataWindow {
-            get {
-                Box2I dataWindow;
-                if (!TryGetAttribute<Box2I>("dataWindow", out dataWindow)) {
-                    throw new EXRFormatException("Invalid or corrupt EXR header: Missing dataWindow attribute.");
-                }
-                return dataWindow;
-            }
-        }
-
-        public EXRCompression Compression {
-            get {
-                EXRCompression compression;
-                if (!TryGetAttribute<EXRCompression>("compression", out compression)) {
-                    throw new EXRFormatException("Invalid or corrupt EXR header: Missing compression attribute.");
-                }
-                return compression;
-            }
-        }
-
-        public PartType Type {
-            get {
-                PartType type;
-                if (!TryGetAttribute<PartType>("type", out type)) {
-                    throw new EXRFormatException("Invalid or corrupt EXR header: Missing type attribute.");
-                }
-                return type;
-            }
-        }
-
-        public ChannelList Channels {
-            get {
-                ChannelList channels;
-                if (!TryGetAttribute<ChannelList>("channels", out channels)) {
-                    throw new EXRFormatException("Invalid or corrupt EXR header: Missing channels attribute.");
-                }
-                return channels;
-            }
-        }
-
-        // TODO: Should we search like this? Spec is unclear
-        public Chromaticities Chromaticities {
-            get {
-                foreach (var attr in Attributes.Values) {
-                    if (attr.Type == "chromaticities" && attr.Value is Chromaticities) {
-                        return (Chromaticities)attr.Value;
-                    }
-                }
-                return DefaultChromaticities;
-            }
-        }
+        return value;
     }
 }
