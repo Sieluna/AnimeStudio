@@ -532,6 +532,30 @@ namespace AnimeStudio.GUI.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("HDR")]
+        public string hdrExportFormat {
+            get {
+                return ((string)(this["hdrExportFormat"]));
+            }
+            set {
+                this["hdrExportFormat"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool enableEXRModule {
+            get {
+                return ((bool)(this["enableEXRModule"]));
+            }
+            set {
+                this["enableEXRModule"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool useBundleContainerName {
             get {

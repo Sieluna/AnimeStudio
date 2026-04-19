@@ -16,18 +16,35 @@ namespace AnimeStudio.GUI
             var m_Texture2D = (Texture2D)item.Asset;
             if (Properties.Settings.Default.convertTexture)
             {
-                bool isHDR = m_Texture2D.m_TextureFormat == TextureFormat.RGBAHalf && Properties.Settings.Default.enableHDR;
-
                 var type = Properties.Settings.Default.convertType;
+                bool isHDR = m_Texture2D.m_TextureFormat == TextureFormat.RGBAHalf && Properties.Settings.Default.enableHDR;
+                bool exportAsExr = false;
+                var extension = "." + type.ToString().ToLower();
+
                 if (isHDR)
                 {
-                    type = ImageFormat.Hdr;
+                    var hdrExportFormat = Properties.Settings.Default.hdrExportFormat ?? "HDR";
+                    exportAsExr = hdrExportFormat.Equals("EXR", StringComparison.OrdinalIgnoreCase);
+                    extension = exportAsExr ? ".exr" : ".hdr";
                 }
-                if (!TryExportFile(exportPath, item, "." + type.ToString().ToLower(), out var exportFullPath))
+                if (!TryExportFile(exportPath, item, extension, out var exportFullPath))
                     return false;
 
                 if (isHDR)
                 {
+                    if (exportAsExr)
+                    {
+                        if (!Properties.Settings.Default.enableEXRModule)
+                        {
+                            Logger.Warning($"Skipped EXR export for {item.Text}: EXR module is not enabled.");
+                        }
+                        else
+                        {
+                            Logger.Warning($"Skipped EXR export for {item.Text}: EXR module is enabled, but no EXR writer is linked in this build.");
+                        }
+                        return false;
+                    }
+
                     var buff = ArrayPool<Byte>.Shared.Rent((int)m_Texture2D.image_data.Size);
                     m_Texture2D.image_data.GetData(buff);
 

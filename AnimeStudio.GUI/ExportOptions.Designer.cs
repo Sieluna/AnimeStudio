@@ -38,6 +38,8 @@ namespace AnimeStudio.GUI
             OKbutton = new Button();
             Cancel = new Button();
             groupBox1 = new GroupBox();
+            enableEXRModule = new CheckBox();
+            hdrFormatComboBox = new ComboBox();
             enableHDR = new CheckBox();
             removeTexNameButton = new Button();
             addTexNameButton = new Button();
@@ -122,6 +124,8 @@ namespace AnimeStudio.GUI
             // groupBox1
             // 
             groupBox1.AutoSize = true;
+            groupBox1.Controls.Add(enableEXRModule);
+            groupBox1.Controls.Add(hdrFormatComboBox);
             groupBox1.Controls.Add(enableHDR);
             groupBox1.Controls.Add(removeTexNameButton);
             groupBox1.Controls.Add(addTexNameButton);
@@ -155,16 +159,40 @@ namespace AnimeStudio.GUI
             groupBox1.TabStop = false;
             groupBox1.Text = "Export";
             // 
+            // enableEXRModule
+            // 
+            enableEXRModule.AutoSize = true;
+            enableEXRModule.Location = new System.Drawing.Point(315, 467);
+            enableEXRModule.Margin = new Padding(6);
+            enableEXRModule.Name = "enableEXRModule";
+            enableEXRModule.Size = new System.Drawing.Size(184, 36);
+            enableEXRModule.TabIndex = 44;
+            enableEXRModule.Text = "Enable EXR module";
+            enableEXRModule.UseVisualStyleBackColor = true;
+            // 
+            // hdrFormatComboBox
+            // 
+            hdrFormatComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            hdrFormatComboBox.FormattingEnabled = true;
+            hdrFormatComboBox.Items.AddRange(new object[] { "HDR", "EXR" });
+            hdrFormatComboBox.Location = new System.Drawing.Point(191, 464);
+            hdrFormatComboBox.Margin = new Padding(6);
+            hdrFormatComboBox.Name = "hdrFormatComboBox";
+            hdrFormatComboBox.Size = new System.Drawing.Size(116, 40);
+            hdrFormatComboBox.TabIndex = 43;
+            // 
             // enableHDR
             // 
             enableHDR.AutoSize = true;
             enableHDR.Location = new System.Drawing.Point(13, 467);
             enableHDR.Margin = new Padding(6);
             enableHDR.Name = "enableHDR";
-            enableHDR.Size = new System.Drawing.Size(411, 36);
+            enableHDR.Size = new System.Drawing.Size(165, 36);
             enableHDR.TabIndex = 42;
-            enableHDR.Text = "Convert texture to HDR if possible";
+            enableHDR.Text = "HDR convert";
             enableHDR.UseVisualStyleBackColor = true;
+            enableHDR.CheckedChanged += EnableHDR_CheckedChanged;
+            toolTip.SetToolTip(enableHDR, "Only applies to RGBAHalf textures.");
             // 
             // removeTexNameButton
             // 
@@ -822,5 +850,7 @@ namespace AnimeStudio.GUI
         private Button removeTexNameButton;
         private CheckBox exportMaterials;
         private CheckBox enableHDR;
+        private ComboBox hdrFormatComboBox;
+        private CheckBox enableEXRModule;
     }
 }

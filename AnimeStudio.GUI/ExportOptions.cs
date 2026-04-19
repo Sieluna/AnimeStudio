@@ -22,6 +22,12 @@ namespace AnimeStudio.GUI
             restoreExtensionName.Checked = Properties.Settings.Default.restoreExtensionName;
             converttexture.Checked = Properties.Settings.Default.convertTexture;
             enableHDR.Checked = Properties.Settings.Default.enableHDR;
+            enableEXRModule.Checked = Properties.Settings.Default.enableEXRModule;
+            hdrFormatComboBox.SelectedItem = Properties.Settings.Default.hdrExportFormat;
+            if (hdrFormatComboBox.SelectedIndex < 0)
+            {
+                hdrFormatComboBox.SelectedIndex = 0;
+            }
             convertAudio.Checked = Properties.Settings.Default.convertAudio;
             var str = Properties.Settings.Default.convertType.ToString();
             foreach (Control c in panel1.Controls)
@@ -67,6 +73,7 @@ namespace AnimeStudio.GUI
 
             typesComboBox.SelectedIndex = 0;
             uvsComboBox.SelectedIndex = 0;
+            UpdateHdrControlsState();
         }
 
         private void OKbutton_Click(object sender, EventArgs e)
@@ -75,6 +82,8 @@ namespace AnimeStudio.GUI
             Properties.Settings.Default.restoreExtensionName = restoreExtensionName.Checked;
             Properties.Settings.Default.convertTexture = converttexture.Checked;
             Properties.Settings.Default.enableHDR = enableHDR.Checked;
+            Properties.Settings.Default.enableEXRModule = enableEXRModule.Checked;
+            Properties.Settings.Default.hdrExportFormat = hdrFormatComboBox.SelectedItem?.ToString() ?? "HDR";
             Properties.Settings.Default.convertAudio = convertAudio.Checked;
             foreach (Control c in panel1.Controls)
             {
@@ -272,6 +281,18 @@ namespace AnimeStudio.GUI
         {
             DialogResult = DialogResult.Cancel;
             Close();
+        }
+
+        private void EnableHDR_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdateHdrControlsState();
+        }
+
+        private void UpdateHdrControlsState()
+        {
+            var enabled = enableHDR.Checked;
+            hdrFormatComboBox.Enabled = enabled;
+            enableEXRModule.Enabled = enabled;
         }
     }
 }
