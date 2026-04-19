@@ -38,7 +38,6 @@ namespace AnimeStudio.GUI
             OKbutton = new Button();
             Cancel = new Button();
             groupBox1 = new GroupBox();
-            enableEXRModule = new CheckBox();
             hdrFormatComboBox = new ComboBox();
             enableHDR = new CheckBox();
             removeTexNameButton = new Button();
@@ -124,7 +123,6 @@ namespace AnimeStudio.GUI
             // groupBox1
             // 
             groupBox1.AutoSize = true;
-            groupBox1.Controls.Add(enableEXRModule);
             groupBox1.Controls.Add(hdrFormatComboBox);
             groupBox1.Controls.Add(enableHDR);
             groupBox1.Controls.Add(removeTexNameButton);
@@ -158,17 +156,6 @@ namespace AnimeStudio.GUI
             groupBox1.TabIndex = 9;
             groupBox1.TabStop = false;
             groupBox1.Text = "Export";
-            // 
-            // enableEXRModule
-            // 
-            enableEXRModule.AutoSize = true;
-            enableEXRModule.Location = new System.Drawing.Point(315, 467);
-            enableEXRModule.Margin = new Padding(6);
-            enableEXRModule.Name = "enableEXRModule";
-            enableEXRModule.Size = new System.Drawing.Size(184, 36);
-            enableEXRModule.TabIndex = 44;
-            enableEXRModule.Text = "Enable EXR module";
-            enableEXRModule.UseVisualStyleBackColor = true;
             // 
             // hdrFormatComboBox
             // 
@@ -851,6 +838,5 @@ namespace AnimeStudio.GUI
         private CheckBox exportMaterials;
         private CheckBox enableHDR;
         private ComboBox hdrFormatComboBox;
-        private CheckBox enableEXRModule;
     }
 }

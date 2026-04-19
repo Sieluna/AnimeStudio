@@ -40,12 +40,6 @@ namespace AnimeStudio.GUI
 
                         if (exportAsExr)
                         {
-                            if (!Properties.Settings.Default.enableEXRModule)
-                            {
-                                Logger.Warning($"Skipped EXR export for {item.Text}: EXR module is not enabled.");
-                                return false;
-                            }
-
                             if (!EXRModule.TryExportRgbaHalf(exportFullPath, buff, rawDataSize, m_Texture2D.m_Width, m_Texture2D.m_Height, true, out var exrError))
                             {
                                 Logger.Warning($"Failed EXR export for {item.Text}: {exrError}");

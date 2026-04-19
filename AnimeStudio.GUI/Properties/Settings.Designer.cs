@@ -545,18 +545,6 @@ namespace AnimeStudio.GUI.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool enableEXRModule {
-            get {
-                return ((bool)(this["enableEXRModule"]));
-            }
-            set {
-                this["enableEXRModule"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool useBundleContainerName {
             get {
                 return ((bool)(this["useBundleContainerName"]));

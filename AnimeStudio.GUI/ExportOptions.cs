@@ -22,7 +22,6 @@ namespace AnimeStudio.GUI
             restoreExtensionName.Checked = Properties.Settings.Default.restoreExtensionName;
             converttexture.Checked = Properties.Settings.Default.convertTexture;
             enableHDR.Checked = Properties.Settings.Default.enableHDR;
-            enableEXRModule.Checked = Properties.Settings.Default.enableEXRModule;
             hdrFormatComboBox.SelectedItem = Properties.Settings.Default.hdrExportFormat;
             if (hdrFormatComboBox.SelectedIndex < 0)
             {
@@ -82,7 +81,6 @@ namespace AnimeStudio.GUI
             Properties.Settings.Default.restoreExtensionName = restoreExtensionName.Checked;
             Properties.Settings.Default.convertTexture = converttexture.Checked;
             Properties.Settings.Default.enableHDR = enableHDR.Checked;
-            Properties.Settings.Default.enableEXRModule = enableEXRModule.Checked;
             Properties.Settings.Default.hdrExportFormat = hdrFormatComboBox.SelectedItem?.ToString() ?? "HDR";
             Properties.Settings.Default.convertAudio = convertAudio.Checked;
             foreach (Control c in panel1.Controls)
@@ -292,7 +290,6 @@ namespace AnimeStudio.GUI
         {
             var enabled = enableHDR.Checked;
             hdrFormatComboBox.Enabled = enabled;
-            enableEXRModule.Enabled = enabled;
         }
     }
 }

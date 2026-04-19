@@ -131,9 +131,6 @@
     <Setting Name="hdrExportFormat" Type="System.String" Scope="User">
       <Value Profile="(Default)">HDR</Value>
     </Setting>
-    <Setting Name="enableEXRModule" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">False</Value>
-    </Setting>
     <Setting Name="useBundleContainerName" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
